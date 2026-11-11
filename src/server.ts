@@ -1,98 +1,54 @@
-import { DurableObject } from "cloudflare:workers";
-import { Workspace, type DurableObjectStorageLike } from "@cloudflare/computer";
-import { CodemodeBackend } from "@cloudflare/computer/backends/codemode";
-import { createGitClient } from "@cloudflare/computer/git";
-import { createGitModule } from "@cloudflare/computer/modules/git";
-import { OpenCodeWorkerd } from "@opencode/sdk/workerd";
+import { Think } from "@cloudflare/think";
+import { Workspace } from "@cloudflare/computer";
+import { CodeMode }
+import { WorkerJavaScriptBackend } from "@cloudflare/computer/backends/worker-javascript";
+import { createAI } from "agents/models/ai-sdk";
 import { routeAgentRequest } from "agents";
-import { OpenCodeHarness } from "agents/harness/opencode";
-import { Lifecycle } from "agents/lifecycle";
-import { createAI } from "agents/models/opencode";
-import { WebSockets } from "agents/websockets";
-import { OpenCodeSessionSockets } from "./sockets";
-import { workspacePlugin } from "./workspace";
+import type { Env } from "@mistralai/mistralai/lib/env.js";
 
-export const MODEL_ID = "@cf/moonshotai/kimi-k2.7-code";
+// Same model the existing OpenCodeAgent uses.
+const MODEL_ID = "@cf/moonshotai/kimi-k2.7-code";
 
-/** A playable OpenCode instance backed by one Durable Object. */
-export class OpenCodeAgent extends DurableObject<Env> {
-  // Workers AI over the AI binding, as an OpenCode provider plugin.
-  readonly ai = createAI({ binding: this.env.AI });
-  // Files in the object's own storage. `exec` runs JavaScript in a Worker
-  // Loader isolate with no network of its own. `git` turns on
-  // `workspace.git`, which `codemode:git` uses to clone over HTTPS from the host.
-  readonly workspace = new Workspace({
-    // SAFETY: DurableObjectStorage has every member DurableObjectStorageLike
-    // names; computer declares its own narrower type to avoid depending on
-    // workers-types.
-    storage: this.ctx.storage as unknown as DurableObjectStorageLike,
-    git: createGitClient(),
+/**
+ * Top-level Think agent with workspace file tools.
+ *
+ * Think automatically provides these built-in workspace tools on every turn:
+ *   read, ls, find, grep, write, edit, delete
+ *
+ * Adding a WorkerJavaScriptBackend also enables `exec` — the model can write
+ * and run JavaScript against workspace files in a Dynamic Worker.
+ *
+ * Connect from a browser with `useAgentChat` from `@cloudflare/ai-chat/react`.
+ */
+export class PaulibabyAgent extends Think<Env> {
+  // Override the default workspace to add a JavaScript execution backend.
+  // The LOADER worker_loader binding powers the Dynamic Worker for `exec`.
+  override workspace = new Workspace({
+    storage: this.ctx.storage,
     backends: [
-      new CodemodeBackend({
-        loader: this.env.LOADER,
-        root: "/workspace",
+      new WorkerJavaScriptBackend({
+        id: "js",
+        loader: (this.env as any).LOADER,
         access: "read-write",
-        modules: { "codemode:git": createGitModule({ allowNetwork: true }) }
-      })
-    ]
-  });
-  readonly harness = new OpenCodeHarness({
-    opencode: ({ storage }) =>
-      OpenCodeWorkerd.create({
-        // The object's storage, with OpenCode's tables under `opencode_`.
-        storage,
-        config: { default_agent: "build" },
-        // OpenCode refreshes its model catalog from models.dev; this app
-        // only uses the Workers AI models it names.
-        models: { fetch: false },
-        // OpenCode is silent unless given a log writer.
-        log: {
-          level: "warn",
-          emit: (entry) =>
-            console.warn(
-              `opencode ${entry.level}: ${entry.message}`,
-              entry.attributes,
-              entry.cause
-            )
-        },
-        plugins: [this.ai.plugin, workspacePlugin(this.workspace)]
       }),
-    // Low effort: with more, the model sometimes writes its whole answer
-    // into its reasoning.
-    defaults: {
-      model: this.ai(MODEL_ID, { reasoningEffort: "low" }),
-      agent: "build"
-    }
+    ],
   });
 
-  // App glue, not the harness: how this app puts sessions on a socket.
-  readonly sockets = new OpenCodeSessionSockets(this.harness, (tag) =>
-    this.ctx.getWebSockets(tag)
-  );
-  readonly webSockets = new WebSockets(this.sockets.options());
-  readonly lifecycle = Lifecycle.install(this)
-    .use(this.webSockets)
-    .use(this.harness);
+  getModel() {
+    const ai = createAI({ binding: this.env.AI});
+    return ai(MODEL_ID, { reasoningEffort: "low" });
+  }
 
-  /** Host startup, after the harness has opened OpenCode. */
-  async onStart(): Promise<void> {
-    await this.sockets.reattach();
+  getSystemPrompt() {
+    return "You are a helpful assistant with access to a workspace filesystem. You can read, list, find, grep, write, edit, and delete files, and run JavaScript with exec. Use these tools when the user asks you to work with files or code.";
   }
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    try {
-      return (
-        (await routeAgentRequest(request, env, { cors: true })) ??
-        new Response("Not found", { status: 404 })
-      );
-    } catch (error) {
-      console.error("OpenCode playground request failed", error);
-      return Response.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        { status: 500 }
-      );
-    }
-  }
+    return (
+      (await routeAgentRequest(request, env)) ||
+      new Response("Not found", { status: 404 })
+    );
+  },
 } satisfies ExportedHandler<Env>;

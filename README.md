@@ -1,121 +1,70 @@
-# OpenCode harness
+# agent-paulibaby — Think top-level agent
 
-An experimental example that runs [OpenCode v2](https://opencode.ai/v2/docs/build/sdk/cloudflare/)
-(`@opencode/sdk/workerd`) inside a Durable Object. `OpenCodeHarness` comes
-from `agents/harness/opencode`, and the Workers AI provider from
-`agents/models/opencode`. Both entry points are experimental and will change.
-This example is the only documentation for them for now.
+A stateful AI chat agent built with `@cloudflare/think`, running on the same
+Workers AI model as the existing `OpenCodeAgent`: **`@cf/moonshotai/kimi-k2.7-code`**
+with `reasoningEffort: "low"`.
 
-## What it shows
+## What you get
 
-- **`OpenCodeHarness`**, a Lifecycle capability with the same interface as
-  `PiHarness`: `harness.prompt()`, `harness.submit()`, `harness.sessions`,
-  `harness.session(id)`. Each session also has `history()`, `events()` and
-  `log()`. A factory opens OpenCode:
+| Feature | How |
+|---|---|
+| **Streaming chat** | WebSocket protocol, resumable across page refreshes |
+| **Persistent memory** | Durable Object SQLite — survives evictions & restarts |
+| **Workspace file tools** | `read`, `ls`, `find`, `grep`, `write`, `edit`, `delete` (built-in, no config) |
+| **Code execution** | `exec` — model writes & runs JS against workspace files (via `WorkerJavaScriptBackend`) |
+| **Tracing** | Model turns, tool calls, and approvals in the dashboard Agents view |
 
-  ```ts
-  readonly harness = new OpenCodeHarness({
-    opencode: ({ storage }) =>
-      OpenCodeWorkerd.create({ storage, plugins: [this.ai.plugin] }),
-    defaults: { model: this.ai("@cf/moonshotai/kimi-k2.7-code") }
-  });
-  ```
+## Repo structure
 
-- **Session events.** `session.events()` returns a snapshot of the session
-  and then its events, the same kinds `PiHarness` reports: `run_start` and
-  `run_end`, `operation_start` and `operation_end` (with the result `wait()`
-  returns), `message_start` and `message_end`, `text_delta`,
-  `reasoning_delta`, `tool_start` and `tool_end`, and a few more. OpenCode's
-  own events stay available from `session.log()`, durable and resumable by
-  sequence number.
-
-  ```ts
-  const stream = await harness.session(id).events();
-  render(stream.snapshot);
-  stream.start((events) => events.forEach(apply));
-  // later
-  await stream.stop();
-  ```
-
-- **Storage.** The `storage` the factory gets keeps OpenCode's tables under
-  an `opencode_` prefix in the object's SQLite database, so they don't
-  collide with the SDK's or yours. OpenCode has no option for this yet
-  ([anomalyco/opencode#53577](https://github.com/anomalyco/opencode/issues/53577)),
-  so the harness rewrites OpenCode's SQL.
-- **The wake.** Each session gets one Lifecycle job. The job waits while the
-  session runs and completes once the session is idle. If the object is
-  evicted or crashes mid-turn, the job's alarm restarts it, OpenCode resumes
-  the turn, and the job waits again. This works with no client connected.
-- **Hibernation.** An open OpenCode runs background timers that keep the
-  object in memory. The harness closes OpenCode 30 seconds after its last
-  use, once nothing is running, and reopens it on the next call.
-- **`createAI` from `agents/models/opencode`.** Cloudflare's models as an
-  OpenCode plugin, over the `AI` binding: Workers AI ids, AI Gateway catalog
-  ids (`anthropic/claude-opus-4.8`) and dynamic routes, with no account id or
-  API token.
-- **App glue that isn't part of the harness.**
-  - `sockets.ts` puts sessions on `WebSockets`. Each socket gets a snapshot
-    of the transcript. While a session runs, one stream from
-    `session.events()` fans its events out to every socket on it, and the
-    stream stops when the session is idle.
-  - `workspace.ts` replaces OpenCode's file and shell tools, which have
-    nothing to run on in Workers, with the Workspace tools from
-    `@cloudflare/computer`: `read`, `write`, `edit`, `delete`, `ls`, `find`
-    and `grep` over files in the object's storage, and `exec`, which runs
-    JavaScript in a Worker Loader isolate and can clone with git.
-
-## Run locally
-
-```sh
-pnpm install
-pnpm run start
+```
+agent-paulibaby/
+├── src/
+│   ├── server.ts        # PaulibabyAgent (extends Think) + fetch handler
+│   └── client.tsx       # React chat UI (useAgentChat)
+├── index.html           # HTML entry point for the frontend
+├── vite.config.ts       # Vite + @cloudflare/vite-plugin
+├── wrangler.jsonc       # Worker config: AI, LOADER, Durable Object, assets
+├── package.json         # Dependencies
+├── tsconfig.json        # TypeScript config (extends agents/tsconfig)
+└── README.md            # This file
 ```
 
-The example uses the remote Workers AI binding, which may incur Workers AI
-usage. It needs no API key. If your Wrangler login can see more than one
-account, set `CLOUDFLARE_ACCOUNT_ID` when starting.
+## Setup
 
-Each browser gets its own Durable Object, named by a random id kept in
-`localStorage`. That id is the only thing standing between one browser's
-chats and another's: anyone who has it can read and use them. A real app
-routes to an object the user is authorized for, and puts quotas on prompts:
-this example only caps a prompt at 100,000 characters. OpenCode adds
-about 3.7 MB (gzip) to the Worker, so deploying needs the Workers Paid plan.
+```sh
+npm install
+```
 
-## What to try
+## Develop locally
 
-- `Write a haiku about Durable Objects to /workspace/haiku.txt, then read it back.`
-- `Clone https://github.com/octocat/Hello-World into /workspace/hello, then show its git log.`
-- `Fetch https://example.com and tell me the page's title.`
-- While a turn runs, press Enter to queue a follow-up, Steer to join the
-  running turn, or Stop to interrupt it.
-- Reload mid-turn: you get the transcript so far, and the rest streams in.
-- Open the same page in two tabs: both follow the session live.
-- Create sessions from the sidebar. They run independently and in parallel.
+```sh
+npm run dev
+```
 
-## What OpenCode can't do here
+Vite serves the React frontend and proxies `/agents/*` to the Worker.
 
-OpenCode's Workers profile has no filesystem, shell or terminal, so those
-tools are removed. `workspace.ts` adds its own through an OpenCode plugin.
-By default OpenCode wraps plugin tools in its `execute` code-mode tool;
-`options: { codemode: false }` offers each one to the model by name.
+## Deploy
 
-There's no shell: `exec` runs JavaScript modules only, with no npm.
+```sh
+npm run deploy
+```
 
-The OpenCode CLI can't attach to a session here yet. OpenCode doesn't
-expose its in-process HTTP handler
-([anomalyco/opencode#54803](https://github.com/anomalyco/opencode/issues/54803),
-tracked in [#2567](https://github.com/cloudflare/agents/issues/2567)).
+## How the workspace tools work
 
-On boot, OpenCode's local provider plugins (Ollama, LM Studio, vLLM) try to
-reach `127.0.0.1`. Those requests fail harmlessly.
+Think gives every agent a `Workspace` from `@cloudflare/computer`, stored in the
+Durable Object's SQLite. The file tools (`read`, `ls`, `find`, `grep`, `write`,
+`edit`, `delete`) are added to every turn automatically — no configuration needed.
 
-If a turn is cut off by a restart, OpenCode keeps only the text it had
-already committed. It resumes with a note to the model to continue, and the
-model sometimes starts over or wraps up early.
+Adding a `WorkerJavaScriptBackend` (backed by the `LOADER` worker_loader binding)
+also enables `exec`: the model can write and run JavaScript against workspace
+files in a Dynamic Worker.
 
-## Vite
+## Notes
 
-`vite.config.ts` stubs one file inside `effect`, which OpenCode is built on:
-the Scalar API reference UI, which Vite's import analysis can't parse and
-OpenCode never serves here. Wrangler builds the Worker without the stub.
+- **Model**: `@cf/moonshotai/kimi-k2.7-code` — same as the existing worker. Change
+  `MODEL_ID` in `src/server.ts` to switch models.
+- **Migration tag**: This config uses `"v1"`. If your existing `OpenCodeAgent`
+  already deployed a `"v1"` migration, bump the tag to `"v2"` before deploying.
+- **Existing OpenCodeAgent**: This setup replaces the top-level agent with Think.
+  To keep `OpenCodeAgent` alongside Think, add its binding back to
+  `durable_objects.bindings` in `wrangler.jsonc`.
