@@ -5,10 +5,7 @@ import { createAITools } from "@cloudflare/computer/tools/ai-sdk";
 import {
   createCodemodeRuntime,
   DynamicWorkerExecutor,
-  McpConnector,
   type CodemodeRuntimeHandle,
-  type ConnectorTool,
-  type McpConnectionLike,
 } from "@cloudflare/codemode";
 import { toolSetConnector } from "@cloudflare/codemode/ai";
 import { createAI } from "agents/models/ai-sdk";
@@ -64,7 +61,6 @@ export class PaulibabyAgent extends Think<Env> {
   // MCP tools are exposed through the Code Mode connector, not Think's
   // automatic tool set.
   includeMcpTools = false;
-  waitForMcpConnections = true;
 
   getModel() {
     return createAI({ binding: this.env.AI })(MODEL_ID, { reasoningEffort: "low" });
@@ -75,31 +71,26 @@ export class PaulibabyAgent extends Think<Env> {
       "You are a helpful assistant with workspace file tools, Code Mode, and connectors.",
       "Workspace tools: read, ls, find, grep, write, edit, delete, exec.",
       "Code Mode: write one JS function that orchestrates multiple tools in a single block.",
-      "Connectors: github.* (MCP, create_issue requires approval), operations.* (server tools).",
+      "GitHub tools require the GITHUB_TOKEN Worker secret; all tools not explicitly classified as read-only require user approval.",
+      "Connectors: github.* (approval-gated mutations), operations.* (server tools).",
       "Use codemode.search() and codemode.describe() to discover connector methods.",
     ].join(" ");
   }
 
   #runtime: CodemodeRuntimeHandle | null = null;
+  #githubConfigurationWarningLogged = false;
 
   async codemodeRuntime(): Promise<CodemodeRuntimeHandle> {
     if (this.#runtime) return this.#runtime;
 
-    // Wait for MCP connections to restore after hibernation.
-    await this.mcp.waitForConnections();
-
-    // Find the GitHub MCP server (registered via wrangler mcp config or
-    // this.mcp.addServer). Adjust the name to match your MCP server.
-    const server = this.mcp
-      .listServers()
-      .find((s) => s.name === "github");
-    let connectors = [];
-
-    if (server) {
-      const connection = this.mcp.mcpConnections[server.id];
-      if (connection) {
-        connectors.push(new GithubConnector(this.ctx, this.env, connection));
-      }
+    const connectors = [];
+    if (this.env.GITHUB_TOKEN) {
+      connectors.push(
+        new GithubConnector(this.ctx, this.env, this.env.GITHUB_TOKEN),
+      );
+    } else if (!this.#githubConfigurationWarningLogged) {
+      console.warn("GITHUB_TOKEN is not configured; GitHub tools are disabled.");
+      this.#githubConfigurationWarningLogged = true;
     }
 
     // ToolSetConnector: exposes AI SDK tools as operations.*

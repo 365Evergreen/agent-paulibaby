@@ -17,6 +17,7 @@
   ],
 
   "assets": {
+    "directory": "./apps/web/dist/client",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/agents/*"]
   },
@@ -41,21 +42,6 @@
     "enabled": true,
     "traces": {
       "enabled": true
-    }
-  },
-
-  "mcp": {
-    "servers": {
-      "github": {
-        "transport": {
-          "type": "remote",
-          "url": "https://api.githubcopilot.com/mcp/"
-        },
-        "auth": {
-          "type": "bearer",
-          "token": "YOUR_GITHUB_TOKEN"
-        }
-      }
     }
   }
 }

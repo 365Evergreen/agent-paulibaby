@@ -1,9 +1,8 @@
 # Monorepo boundaries and build conventions
 
-This document defines the target code ownership and dependency rules for the
-repository. It establishes package and build conventions before code is moved;
-the existing root-level application remains the deployable implementation until
-the UI and Worker extraction tasks are completed.
+This document defines code ownership and dependency rules for the repository.
+The UI, gateway, Think agent, shared contracts, authentication helper, GitHub
+connector, and standalone MCP services now live in their respective workspaces.
 
 ## Code boundaries
 
@@ -15,6 +14,8 @@ the UI and Worker extraction tasks are completed.
 | UI | `apps/web` | React rendering, browser state, browser-only tools, and chat/approval interaction | Server secrets, server tool implementations, or imports from agent runtime packages |
 | Shared contracts | `packages/contracts` | Versioned schemas and types shared across runtime and UI boundaries, including delegation, chat, approval, and error shapes | Environment-specific code, model prompts, or infrastructure bindings |
 | Shared connectors | `packages/connectors` | Reusable adapters for external tools and services, with credentials supplied by the consuming runtime | Credential storage, UI behavior, or agent orchestration |
+| Shared authentication | `packages/auth` | Cloudflare Access JWT verification, group authorization, and opaque per-principal agent names | App-specific routes, UI/session storage, or credential issuance |
+| Standalone MCP services | `apps/mcp-*` | Independently configured MCP endpoints, each with explicit Access and Origin checks | Gateway Durable Object state or credentials embedded in Worker config |
 
 Think is the conversation orchestrator, not a dependency that specialists import.
 Delegation crosses a typed contract and is composed by the runtime. A specialist
@@ -26,8 +27,8 @@ The intended dependency direction is:
 
 ```text
 apps/web ───────────────> packages/contracts
-apps/gateway ───────────> packages/contracts
-apps/gateway ───────────> packages/agents/think
+apps/gateway ───────────> packages/auth, packages/contracts, packages/agents/think
+apps/mcp-* ─────────────> packages/auth
 packages/agents/think ──> packages/contracts, packages/connectors
 packages/agents/<name> ─> packages/contracts, packages/connectors
 ```
@@ -81,12 +82,31 @@ protocol, not by importing each other's implementation.
 The UI validates approval data at runtime before rendering it. The gateway uses
 the shared error response type for its JSON not-found response.
 
+## Access, tenants, and tool permissions
+
+The gateway verifies Cloudflare Access assertions (issuer, audience, expiry,
+signature, and an allowed group) before routing any agent request. It derives
+the Durable Object instance name from the verified issuer, audience, and
+subject; a client-supplied instance name is never used for identity. Set
+`LEGACY_STATE_OWNER_SUBJECT` to keep the verified owner of the previous
+`default` instance on that existing state. Do not assign legacy state to the
+first caller automatically.
+
+GitHub is connected at runtime with the `GITHUB_TOKEN` Worker secret, not the
+MCP manager or Durable Object storage. Read-only GitHub tools use an explicit
+allowlist; all other and future tools require the durable approval gate. The
+UI displays the exact arguments before a reviewer approves. Clipboard,
+geolocation, and localStorage browser tools ask for confirmation before access.
+Standalone MCP endpoints use the same Access validation and reject unapproved
+browser Origins. See [Access and approvals](../docs/agents/access-and-approvals.md)
+for configuration and operations.
+
 ## Current transition state
 
-The web UI, gateway entry point, Think agent, GitHub connector, and contracts
-now live in npm workspaces. Vite still builds and serves the web assets and
-Worker together, preserving same-origin chat and approvals. The root
-`wrangler.jsonc` keeps its Worker name, `PaulibabyAgent` export/binding, and
-`v1` migration; Vite's local persistence path remains anchored to the existing
-root `.wrangler/state` directory. Standalone MCP examples remain in `src/` for
-the follow-on organization task.
+The web UI, gateway entry point, Think agent, GitHub connector, contracts, auth
+helper, and standalone MCP services live in npm workspaces. Vite still builds
+and serves the web assets and Worker together, preserving same-origin chat and
+approvals. The root `wrangler.jsonc` keeps its Worker name, `PaulibabyAgent`
+export/binding, and `v1` migration; Vite's local persistence path remains
+anchored to the existing root `.wrangler/state` directory. Standalone MCP
+services have separate Wrangler configs and `workers_dev` disabled by default.

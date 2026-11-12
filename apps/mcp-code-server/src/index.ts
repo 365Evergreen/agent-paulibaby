@@ -1,8 +1,13 @@
 import { codeMcpServer } from "@cloudflare/codemode/mcp";
 import { DynamicWorkerExecutor } from "@cloudflare/codemode";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createLegacyMcpHandler } from "agents/mcp";
 import { z } from "zod";
+import {
+  accessErrorResponse,
+  authenticateAccessRequest,
+  isAllowedOrigin,
+} from "@agent-paulibaby/auth";
 
 /**
  * Code Mode MCP server — wraps an existing MCP server with a single `code` tool.
@@ -12,8 +17,7 @@ import { z } from "zod";
  * for every upstream tool. The model writes JavaScript against a `codemode`
  * namespace and the code runs in an isolated Dynamic Worker.
  *
- * Any MCP client can connect at:
- *   https://<YOUR_WORKER>.<YOUR_SUBDOMAIN>.workers.dev/mcp
+ * Connect through an Access-protected custom domain at /mcp.
  *
  * The model sees typed methods like:
  *   codemode.get_server_time()
@@ -70,7 +74,26 @@ function createUpstreamServer() {
 // ── Worker entry point ────────────────────────────────────────────────────────
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
+    const access = await authenticateAccessRequest(request, env);
+    if (!access.ok) return accessErrorResponse(access);
+    if (!isAllowedOrigin(request, env.MCP_ALLOWED_ORIGINS)) {
+      return Response.json(
+        {
+          error: {
+            code: "origin_not_allowed",
+            message: "This browser origin is not allowed.",
+            retryable: false,
+          },
+        },
+        { status: 403 },
+      );
+    }
+
     const url = new URL(request.url);
 
     // Health check
@@ -96,13 +119,9 @@ export default {
       // description: "Write JavaScript that calls {{types}}\n\nExample: {{example}}",
     });
 
-    // Serve over the MCP streamable HTTP transport
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // stateless mode
+    const handler = createLegacyMcpHandler(server, {
+      sessionIdGenerator: undefined,
     });
-
-    await server.connect(transport);
-
-    return transport.handleRequest(request);
+    return handler(request, env, ctx);
   },
 } satisfies ExportedHandler<Env>;
