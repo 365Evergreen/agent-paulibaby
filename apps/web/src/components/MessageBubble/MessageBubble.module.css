@@ -1,0 +1,42 @@
+.bubble {
+  width: fit-content;
+  max-width: min(88%, 48rem);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow-wrap: anywhere;
+}
+
+.assistantBubble {
+  align-self: flex-start;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+}
+
+.userBubble {
+  align-self: flex-end;
+  border-color: transparent;
+  background: var(--color-surface-accent);
+}
+
+.role {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.content {
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 40rem) {
+  .bubble {
+    max-width: 96%;
+    padding: var(--space-3);
+  }
+}

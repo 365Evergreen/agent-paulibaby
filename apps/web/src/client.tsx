@@ -9,7 +9,13 @@ import {
   type PendingApproval,
 } from "@agent-paulibaby/contracts";
 import { codemodeTool } from "./codemode-tool";
-import styles from "./client.module.css";
+import { AlertMessage } from "./components/AlertMessage/AlertMessage";
+import { ApprovalPanel } from "./components/ApprovalPanel/ApprovalPanel";
+import { ChatHeader } from "./components/ChatHeader/ChatHeader";
+import { ChatShell } from "./components/ChatShell/ChatShell";
+import { MessageComposer } from "./components/MessageComposer/MessageComposer";
+import { MessageList } from "./components/MessageList/MessageList";
+import "./styles/tokens.css";
 
 function Chat() {
   const agent = useAgent({ agent: "PaulibabyAgent" });
@@ -80,99 +86,34 @@ function Chat() {
   };
 
   return (
-    <div className={styles.container}>
-      <h1 className={styles.title}>Paulibaby</h1>
-
-      <div className={styles.chatContainer}>
-        {messages.map(
-          (msg: {
-            id: string;
-            role: string;
-            parts: { type: string; text?: string }[];
-          }) => (
-            <div key={msg.id} className={styles.message}>
-              <strong>{msg.role}: </strong>
-              {msg.parts.map((part, i) =>
-                part.type === "text" ? <span key={i}>{part.text}</span> : null,
-              )}
-            </div>
-          ),
-        )}
-      </div>
-
-      {pendingApprovals.length > 0 && (
-        <div className={styles.approvalsContainer}>
-          <h3 className={styles.approvalsTitle}>Pending Approvals</h3>
-          {pendingApprovals.map((approval) => (
-            <div key={`${approval.executionId}:${approval.seq}`} className={styles.approvalItem}>
-              <span className={styles.approvalText}>
-                {approval.connector}.{approval.method}
-              </span>
-              <details className={styles.approvalDetails}>
-                <summary>Review arguments</summary>
-                <pre className={styles.approvalArguments}>
-                  {JSON.stringify(approval.args, null, 2)}
-                </pre>
-              </details>
-              <div className={styles.approvalButtons}>
-                <button
-                  className={styles.approveButton}
-                  onClick={() =>
-                    handleApproval({
-                      action: "approve",
-                      executionId: approval.executionId,
-                    })
-                  }
-                >
-                  Approve
-                </button>
-                <button
-                  className={styles.rejectButton}
-                  onClick={() =>
-                    handleApproval({
-                      action: "reject",
-                      executionId: approval.executionId,
-                      seq: approval.seq,
-                    })
-                  }
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+    <ChatShell>
+      <ChatHeader status={status} />
+      <MessageList messages={messages} />
+      <ApprovalPanel
+        approvals={pendingApprovals}
+        onApprove={(approval) =>
+          handleApproval({
+            action: "approve",
+            executionId: approval.executionId,
+          })
+        }
+        onReject={(approval) =>
+          handleApproval({
+            action: "reject",
+            executionId: approval.executionId,
+            seq: approval.seq,
+          })
+        }
+      />
       {approvalError && (
-        <p className={styles.statusText} role="alert">
-          Approval error: {approvalError}
-        </p>
+        <AlertMessage>Approval error: {approvalError}</AlertMessage>
       )}
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const input = e.currentTarget.elements.namedItem(
-            "input",
-          ) as HTMLInputElement;
-          if (!input.value.trim()) return;
-          sendMessage({ text: input.value });
-          input.value = "";
+      <MessageComposer
+        onSendMessage={(text) => {
+          sendMessage({ text });
         }}
-        className={styles.chatBox}
-      >
-        <input
-          name="input"
-          placeholder="Send a message..."
-          className={styles.chatInput}
-        />
-        <button type="submit" className={styles.sendButton}>
-          Send
-        </button>
-      </form>
-
-      <p className={styles.statusText}>Status: {status}</p>
-    </div>
+      />
+    </ChatShell>
   );
 }
 
