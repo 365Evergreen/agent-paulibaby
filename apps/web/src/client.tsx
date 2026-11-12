@@ -1,13 +1,20 @@
+'use client';
 import { createRoot } from "react-dom/client";
 import { useAgent } from "agents/react";
 import { useAgentChat, type AITool } from "@cloudflare/ai-chat/react";
 import { useMemo, useState, useEffect } from "react";
+import {
+  pendingApprovalsSchema,
+  type ApprovalCommand,
+  type PendingApproval,
+} from "@agent-paulibaby/contracts";
 import { codemodeTool } from "./codemode-tool";
 import styles from "./client.module.css";
 
 function Chat() {
   const agent = useAgent({ agent: "PaulibabyAgent" });
-  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
 
   // Register the browser Code Mode tool as a dynamic client tool.
   const tools = useMemo<Record<string, AITool>>(
@@ -49,21 +56,27 @@ function Chat() {
     const checkApprovals = async () => {
       try {
         const pending = await agent.call("pendingApprovals");
-        setPendingApprovals(Array.isArray(pending) ? pending : []);
-      } catch {
-        // Not available (e.g. using server-simple.ts) — ignore.
+        setPendingApprovals(pendingApprovalsSchema.parse(pending));
+        setApprovalError(null);
+      } catch (error) {
+        setApprovalError(error instanceof Error ? error.message : String(error));
       }
     };
     const interval = setInterval(checkApprovals, 2000);
     return () => clearInterval(interval);
   }, [agent]);
 
-  const handleApprove = async (executionId: string) => {
-    await agent.call("approveExecution", [executionId]);
-  };
-
-  const handleReject = async (executionId: string, seq: number) => {
-    await agent.call("rejectExecution", [executionId, seq]);
+  const handleApproval = async (command: ApprovalCommand) => {
+    try {
+      if (command.action === "approve") {
+        await agent.call("approveExecution", [command.executionId]);
+      } else {
+        await agent.call("rejectExecution", [command.executionId, command.seq]);
+      }
+      setApprovalError(null);
+    } catch (error) {
+      setApprovalError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   return (
@@ -90,22 +103,31 @@ function Chat() {
       {pendingApprovals.length > 0 && (
         <div className={styles.approvalsContainer}>
           <h3 className={styles.approvalsTitle}>Pending Approvals</h3>
-          {pendingApprovals.map((approval, i) => (
-            <div key={i} className={styles.approvalItem}>
+          {pendingApprovals.map((approval) => (
+            <div key={`${approval.executionId}:${approval.seq}`} className={styles.approvalItem}>
               <span className={styles.approvalText}>
-                {approval.connectorName}.{approval.methodName}
+                {approval.connector}.{approval.method}
               </span>
               <div className={styles.approvalButtons}>
                 <button
                   className={styles.approveButton}
-                  onClick={() => handleApprove(approval.executionId)}
+                  onClick={() =>
+                    handleApproval({
+                      action: "approve",
+                      executionId: approval.executionId,
+                    })
+                  }
                 >
                   Approve
                 </button>
                 <button
                   className={styles.rejectButton}
                   onClick={() =>
-                    handleReject(approval.executionId, approval.seq)
+                    handleApproval({
+                      action: "reject",
+                      executionId: approval.executionId,
+                      seq: approval.seq,
+                    })
                   }
                 >
                   Reject
@@ -114,6 +136,11 @@ function Chat() {
             </div>
           ))}
         </div>
+      )}
+      {approvalError && (
+        <p className={styles.statusText} role="alert">
+          Approval error: {approvalError}
+        </p>
       )}
 
       <form

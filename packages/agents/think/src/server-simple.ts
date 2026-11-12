@@ -16,7 +16,7 @@ const MODEL_ID = "@cf/moonshotai/kimi-k2.7-code";
  * Includes workspace tools and MCP tools (via this.mcp.getAITools()).
  * No execution history, approvals, or rollback — for that, use server.ts.
  *
- * Browser Code Mode runs entirely client-side — see src/codemode-tool.ts.
+ * Browser Code Mode runs entirely client-side — see apps/web/src/codemode-tool.ts.
  */
 export class PaulibabyAgent extends Think<Env> {
   override workspace = new Workspace({
