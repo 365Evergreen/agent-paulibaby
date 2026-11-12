@@ -152,14 +152,16 @@ npm run deploy
 gateway exports the existing `PaulibabyAgent` and `CodemodeRuntime` classes
 from the Think workspace. Keep the Worker name, Durable Object class and
 binding names, and migration history unchanged when editing this configuration.
+The original `v1` migration created `OpenCodeAgent`; `v2` renames that
+namespace to `PaulibabyAgent` without deleting its stored data.
 The stateless Think variant and standalone MCP examples are not production
 entrypoints in this configuration.
 
 ## Notes
 
 - **Model**: `@cf/moonshotai/kimi-k2.7-code`. Change `MODEL_ID` to switch.
-- **Migration tag**: Uses `"v1"`. Bump to `"v2"` if your existing `OpenCodeAgent`
-  already deployed a `"v1"` migration.
+- **Migration tags**: Preserve the original `v1` and the `v2` class rename;
+  append a new unique tag for future Durable Object changes.
 - **GitHub token**: Set it as a Worker secret; never add it to Wrangler config
   or agent state.
 - **OpenAPI MCP auth**: Set `API_TOKEN` as a secret and `API_BASE_URL` as an

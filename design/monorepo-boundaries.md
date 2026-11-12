@@ -106,7 +106,8 @@ for configuration and operations.
 The web UI, gateway entry point, Think agent, GitHub connector, contracts, auth
 helper, and standalone MCP services live in npm workspaces. Vite still builds
 and serves the web assets and Worker together, preserving same-origin chat and
-approvals. The root `wrangler.jsonc` keeps its Worker name, `PaulibabyAgent`
-export/binding, and `v1` migration; Vite's local persistence path remains
+approvals. The root `wrangler.jsonc` keeps its Worker name and
+`PaulibabyAgent` export/binding. The original `v1` created `OpenCodeAgent`,
+and `v2` renames it to `PaulibabyAgent`; Vite's local persistence path remains
 anchored to the existing root `.wrangler/state` directory. Standalone MCP
 services have separate Wrangler configs and `workers_dev` disabled by default.

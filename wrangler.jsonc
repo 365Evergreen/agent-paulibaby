@@ -34,7 +34,16 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["PaulibabyAgent"]
+      "new_sqlite_classes": ["OpenCodeAgent"]
+    },
+    {
+      "tag": "v2",
+      "renamed_classes": [
+        {
+          "from": "OpenCodeAgent",
+          "to": "PaulibabyAgent"
+        }
+      ]
     }
   ],
 

@@ -1,8 +1,9 @@
 # Project cleanup
 
 The application is a workspace monorepo. The root Worker continues to serve the
-React UI and `PaulibabyAgent` on the same origin. The Durable Object class,
-binding, `v1` migration, and root `.wrangler/state` location are unchanged.
+React UI and `PaulibabyAgent` on the same origin. The Worker retains the
+original `OpenCodeAgent` `v1` migration and adds a `v2` rename to
+`PaulibabyAgent`; the root `.wrangler/state` location is unchanged.
 
 Cloudflare Access JWT validation runs in the gateway before agent routing.
 Verified issuer, audience, and subject determine an opaque per-user Durable
