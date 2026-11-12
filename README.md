@@ -3,6 +3,10 @@
 A stateful AI chat agent built with `@cloudflare/think`, running on
 **`@cf/moonshotai/kimi-k2.7-code`** with `reasoningEffort: "low"`.
 
+The deployment and durable Think integration are not yet fully verified.
+See [operations and rollback](docs/agents/operations-and-rollback.md) for
+current blockers and the release checklist.
+
 ## Features
 
 | Feature | How |
@@ -111,9 +115,10 @@ The durable runtime (`packages/agents/think/src/agent.ts`) exposes three `@calla
 - `approveExecution(executionId)` — approve and resume
 - `rejectExecution(executionId, seq)` — reject and stop
 
-The client (`apps/web/src/client.tsx`) polls `pendingApprovals()` every 2 seconds,
-shows the exact tool arguments, and offers Approve/Reject buttons. Sensitive
-browser tools also request explicit browser confirmation.
+The client (`apps/web/src/client.tsx`) polls `pendingApprovals()` every 2 seconds
+and is intended to show tool arguments and offer Approve/Reject buttons.
+Durable approval handling requires SDK compatibility fixes and end-to-end
+verification. Sensitive browser tools request explicit browser confirmation.
 
 ## Setup
 

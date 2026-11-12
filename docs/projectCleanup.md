@@ -24,7 +24,10 @@ configs, require Access, and disable `workers.dev` by default.
 - [x] Secure agent access, tenant isolation, tool permissions, and approvals.
 - [x] Establish a package and onboarding convention for each future specialist agent; deploy independently only when justified.
 - [ ] Verify state preservation, chat, approvals, delegation, and deployment.
-- [ ] Document architecture, agent onboarding, operations, and rollback.
+- [x] Document architecture, agent onboarding, operations, and rollback.
 
 See [monorepo boundaries](../design/monorepo-boundaries.md), [Access and
-approvals](agents/access-and-approvals.md), and [specialist onboarding](agents/specialist-agent-onboarding.md).
+approvals](agents/access-and-approvals.md), [specialist onboarding](agents/specialist-agent-onboarding.md),
+and [operations and rollback](agents/operations-and-rollback.md). Verification
+remains open: production Access is unconfigured, durable Think SDK integration
+has type errors, and delegation has no runtime implementation.
