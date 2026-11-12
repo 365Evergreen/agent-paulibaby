@@ -63,6 +63,11 @@ The OpenAPI service also requires `CF_ACCESS_TEAM_DOMAIN`, its own
 
 ## Tool permission policy
 
+The policies below are intended behavior. The durable Think integration
+currently has SDK compatibility errors, so GitHub approval and chat flows
+must be repaired and verified before relying on them. The browser confirmation
+fix is local until deployed. See [operations and rollback](operations-and-rollback.md).
+
 | Tool surface | Default policy |
 | --- | --- |
 | GitHub MCP | Only the explicit read-only allowlist runs directly. Every other tool, including unknown tools added upstream, requires durable user approval. |

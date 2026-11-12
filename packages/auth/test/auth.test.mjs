@@ -56,6 +56,15 @@ test("accepts a signed assertion only for the configured audience and group", as
   }
 });
 
+test("fails closed when Access configuration is missing", async () => {
+  const result = await authenticateAccessRequest(await requestFor("subject-a"), {});
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 503);
+    assert.equal(result.code, "access_not_configured");
+  }
+});
+
 test("rejects identities outside the configured group", async () => {
   const result = await authenticateAccessRequest(
     await requestFor("subject-a", { groups: ["other-group"] }),

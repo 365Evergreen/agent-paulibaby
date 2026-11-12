@@ -11,13 +11,6 @@ import {
 import { codemodeTool } from "./codemode-tool";
 import styles from "./client.module.css";
 
-const protectedBrowserTools = new Set([
-  "getClipboard",
-  "getLocation",
-  "getLocalStorage",
-  "setLocalStorage",
-]);
-
 function Chat() {
   const agent = useAgent({ agent: "PaulibabyAgent" });
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
@@ -43,18 +36,6 @@ function Chat() {
       const tool = tools[toolCall.toolName];
       if (!tool?.execute) return;
       try {
-        if (
-          protectedBrowserTools.has(toolCall.toolName) &&
-          !window.confirm(
-            `Allow ${toolCall.toolName} to access browser data?\n\n${JSON.stringify(toolCall.input, null, 2)}`,
-          )
-        ) {
-          addToolOutput({
-            toolCallId: toolCall.toolCallId,
-            output: "The user did not approve this browser action.",
-          });
-          return;
-        }
         const output = await tool.execute(toolCall.input);
         addToolOutput({
           toolCallId: toolCall.toolCallId,

@@ -17,8 +17,9 @@ connector, and standalone MCP services now live in their respective workspaces.
 | Shared authentication | `packages/auth` | Cloudflare Access JWT verification, group authorization, and opaque per-principal agent names | App-specific routes, UI/session storage, or credential issuance |
 | Standalone MCP services | `apps/mcp-*` | Independently configured MCP endpoints, each with explicit Access and Origin checks | Gateway Durable Object state or credentials embedded in Worker config |
 
-Think is the conversation orchestrator, not a dependency that specialists import.
-Delegation crosses a typed contract and is composed by the runtime. A specialist
+Think is the intended conversation orchestrator, not a dependency that specialists import.
+Delegation contracts exist, but specialist registration and execution are not
+implemented yet. A specialist
 is a code package by default, not a separate Worker deployment; split its
 deployment only when independent security, scaling, release, or failure-isolation
 needs justify the operational cost.
@@ -94,9 +95,10 @@ first caller automatically.
 
 GitHub is connected at runtime with the `GITHUB_TOKEN` Worker secret, not the
 MCP manager or Durable Object storage. Read-only GitHub tools use an explicit
-allowlist; all other and future tools require the durable approval gate. The
-UI displays the exact arguments before a reviewer approves. Clipboard,
-geolocation, and localStorage browser tools ask for confirmation before access.
+allowlist; all other and future tools are intended to require durable approval.
+The durable approval integration is not yet verified against the installed SDK.
+Local browser tools ask for confirmation before clipboard, geolocation, and
+localStorage access.
 Standalone MCP endpoints use the same Access validation and reject unapproved
 browser Origins. See [Access and approvals](../docs/agents/access-and-approvals.md)
 for configuration and operations.
@@ -105,8 +107,8 @@ for configuration and operations.
 
 The web UI, gateway entry point, Think agent, GitHub connector, contracts, auth
 helper, and standalone MCP services live in npm workspaces. Vite still builds
-and serves the web assets and Worker together, preserving same-origin chat and
-approvals. The root `wrangler.jsonc` keeps its Worker name and
+and serves the web assets and Worker together on the same origin. Chat and
+approvals still require end-to-end verification. The root `wrangler.jsonc` keeps its Worker name and
 `PaulibabyAgent` export/binding. The original `v1` created `OpenCodeAgent`,
 and `v2` renames it to `PaulibabyAgent`; Vite's local persistence path remains
 anchored to the existing root `.wrangler/state` directory. Standalone MCP

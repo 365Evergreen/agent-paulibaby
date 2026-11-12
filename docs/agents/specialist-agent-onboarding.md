@@ -25,7 +25,9 @@ Each package should:
 Specialists must not import Think, the gateway, the UI, or another specialist.
 Think owns conversation state and delegation policy; the gateway owns
 authentication, tenant routing, and the Worker entry point. The gateway or
-Think composes specialists through typed contracts.
+Think should compose specialists through typed contracts. The current
+repository has contracts but no specialist registration or delegation runtime;
+implement and test that path when introducing the first specialist.
 
 ## Registration and state
 

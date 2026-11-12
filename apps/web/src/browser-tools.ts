@@ -1,3 +1,5 @@
+import type { JsonSchemaExecutableToolDescriptor } from "@cloudflare/codemode/browser";
+
 /**
  * Browser-owned tools for Code Mode browser integration.
  *
@@ -10,7 +12,13 @@
  * function that runs in the parent page (not the iframe).
  */
 
-export const browserTools = [
+function requireApproval(name: string, args: Record<string, unknown> = {}) {
+  if (!window.confirm(`Allow ${name} to access browser data?\n\n${JSON.stringify(args, null, 2)}`)) {
+    throw new Error(`The user did not approve ${name}.`);
+  }
+}
+
+export const browserTools: JsonSchemaExecutableToolDescriptor[] = [
   {
     name: "getTimezone",
     description: "Get the user's timezone from their browser",
@@ -30,6 +38,7 @@ export const browserTools = [
       properties: {},
     },
     execute: async () => {
+      requireApproval("getClipboard");
       return navigator.clipboard.readText();
     },
   },
@@ -41,6 +50,7 @@ export const browserTools = [
       properties: {},
     },
     execute: async () => {
+      requireApproval("getLocation");
       return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
           (pos) =>
@@ -64,7 +74,11 @@ export const browserTools = [
       },
       required: ["key", "value"],
     },
-    execute: async ({ key, value }: { key: string; value: string }) => {
+    execute: async ({ key, value }: Record<string, unknown>) => {
+      if (typeof key !== "string" || typeof value !== "string") {
+        throw new Error("setLocalStorage requires string key and value.");
+      }
+      requireApproval("setLocalStorage", { key, value });
       localStorage.setItem(key, value);
       return { stored: true };
     },
@@ -79,7 +93,11 @@ export const browserTools = [
       },
       required: ["key"],
     },
-    execute: async ({ key }: { key: string }) => {
+    execute: async ({ key }: Record<string, unknown>) => {
+      if (typeof key !== "string") {
+        throw new Error("getLocalStorage requires a string key.");
+      }
+      requireApproval("getLocalStorage", { key });
       return localStorage.getItem(key);
     },
   },
