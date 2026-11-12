@@ -19,6 +19,9 @@ const MODEL_ID = "@cf/moonshotai/kimi-k2.7-code";
  * Browser Code Mode runs entirely client-side — see apps/web/src/codemode-tool.ts.
  */
 export class PaulibabyAgent extends Think<Env> {
+  includeMcpTools = false;
+  waitForMcpConnections = true;
+
   override workspace = new Workspace({
     storage: this.ctx.storage,
     backends: [
@@ -42,18 +45,16 @@ export class PaulibabyAgent extends Think<Env> {
     ].join(" ");
   }
 
-  async getTools() {
-    // Wait for MCP connections so getAITools() returns the full catalog.
-    await this.mcp.waitForConnections();
-
+  getTools() {
     const executor = new DynamicWorkerExecutor({ loader: this.env.LOADER });
+    const mcpTools = this.mcp.getAITools();
     return {
       codemode: createCodeTool({
         tools: [
           // Workspace file tools as workspace.*
           { name: "workspace", tools: createAITools({ workspace: this.workspace }) },
           // MCP server tools as codemode.* (default namespace)
-          ...(this.mcp.getAITools() ? [{ tools: this.mcp.getAITools() }] : []),
+          { tools: mcpTools },
         ],
         executor,
       }),
