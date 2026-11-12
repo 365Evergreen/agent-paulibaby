@@ -9,6 +9,9 @@
       "import": "./src/index.ts"
     }
   },
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
+  },
   "dependencies": {
     "@agent-paulibaby/connectors": "0.0.1",
     "@agent-paulibaby/contracts": "0.0.1",

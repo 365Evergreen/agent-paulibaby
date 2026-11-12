@@ -1,12 +1,12 @@
 import { McpConnector, type ConnectorTool, type McpConnectionLike } from "@cloudflare/codemode";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { githubToolRequiresApproval } from "./github-approval-policy";
+import { githubToolRequiresApproval, restrictGithubConnection } from "./github-approval-policy";
 
 /**
  * MCP connector for a GitHub MCP server.
  *
- * Exposes all GitHub MCP tools as `github.*` methods inside generated code.
+ * Exposes allowlisted read-only GitHub MCP tools as `github.*` methods.
  * The bearer token is supplied at runtime and is never stored in the Agent's
  * Durable Object state by the MCP manager.
  */
@@ -42,14 +42,14 @@ export class GithubConnector extends McpConnector<unknown> {
     await client.connect(transport);
     const { tools } = await client.listTools();
 
-    return {
+    return restrictGithubConnection({
       name: "github",
       tools,
       client: {
         callTool: ({ name, arguments: args }) =>
           client.callTool({ name, arguments: args }),
       },
-    };
+    });
   }
 
   protected override tool(name: string, tool: ConnectorTool): ConnectorTool {

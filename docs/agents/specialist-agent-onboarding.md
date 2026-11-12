@@ -38,9 +38,10 @@ path does not require changing those identities. Add migrations only for
 intentional schema changes.
 
 Use the shared `packages/auth` and `packages/connectors` packages where
-appropriate. Unknown or mutating connector tools require approval unless an
-explicitly reviewed policy says otherwise. Add the contract to the relevant
-tests and document the failure/error shape.
+appropriate. Unknown or mutating connector tools must be blocked until their
+approval and replay behavior is verified end to end; GitHub writes are
+currently disabled. Add the contract to the relevant tests and document the
+failure/error shape.
 
 ## Independent deployment gate
 

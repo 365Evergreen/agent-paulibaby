@@ -3,7 +3,9 @@
 A stateful AI chat agent built with `@cloudflare/think`, running on
 **`@cf/moonshotai/kimi-k2.7-code`** with `reasoningEffort: "low"`.
 
-The deployment and durable Think integration are not yet fully verified.
+The Think agent has generated code in a local direct-turn test, including
+writing and reading it through Code Mode's local workspace. Authenticated
+browser chat and deployment are not yet fully verified.
 See [operations and rollback](docs/agents/operations-and-rollback.md) for
 current blockers and the release checklist.
 
@@ -17,7 +19,7 @@ current blockers and the release checklist.
 | **Code Mode (server)** | `codemode` tool — model writes JS that orchestrates tools in one block (up to 80% token savings) |
 | **Code Mode (browser)** | Browser-owned tools run in a sandboxed iframe via `IframeSandboxExecutor` |
 | **Code Mode MCP server** | Access-protected standalone Code Mode MCP Worker |
-| **MCP connector** | GitHub MCP tools as `github.*`; unknown and mutating tools require approval |
+| **MCP connector** | Allowlisted read-only GitHub MCP tools as `github.*`; other GitHub tools are disabled |
 | **ToolSetConnector** | Custom AI SDK tools as `operations.*` |
 | **Human-in-the-loop** | Pending approvals, approve/reject, rollback — all durable |
 | **Tracing** | Model turns, tool calls, approvals in the dashboard |
@@ -57,9 +59,10 @@ continues using the existing `.wrangler/state` directory.
 
 ### 1. Server Code Mode — durable runtime (`packages/agents/think/src/agent.ts`)
 
-`createCodemodeRuntime()` with `DynamicWorkerExecutor`. The model writes one JS
-function that calls `workspace.*`, `github.*`, and `operations.*` methods.
-Execution history, approvals, rollback, and snippets are stored in SQLite.
+Think's `createExecuteRuntime()` uses a `DynamicWorkerExecutor` and durable
+Code Mode runtime. The model writes one JS function that calls `workspace.*`,
+`github.*`, and `operations.*` methods. Execution history, approvals, rollback,
+and snippets are stored in SQLite.
 
 ### 2. Server Code Mode — stateless (`packages/agents/think/src/server-simple.ts`)
 
@@ -98,9 +101,9 @@ stateless v2 handler when the Code Mode MCP API supports it.
 ### MCP connector (`packages/connectors/src/github-connector.ts`)
 
 Connects to GitHub's MCP endpoint at runtime with the `GITHUB_TOKEN` Worker
-secret. Only an explicit read-only allowlist runs directly; mutations and
-unknown upstream tools pause for approval. The bearer token is not persisted in
-Durable Object state.
+secret. Only an explicit read-only allowlist is available; mutations and
+unknown upstream tools are blocked until the approval flow is verified.
+The bearer token is not persisted in Durable Object state.
 
 ### ToolSetConnector (in `packages/agents/think/src/agent.ts`)
 
@@ -109,16 +112,17 @@ Exposes AI SDK tools as `operations.*`. The model calls
 
 ## Human-in-the-loop approvals
 
-The durable runtime (`packages/agents/think/src/agent.ts`) exposes three `@callable` methods:
+The durable runtime uses Think's built-in callable methods:
 
-- `pendingApprovals()` — list paused executions waiting for review
+- `pendingExecutions()` — list paused Code Mode actions with their full arguments
 - `approveExecution(executionId)` — approve and resume
-- `rejectExecution(executionId, seq)` — reject and stop
+- `rejectExecution(executionId)` — reject and continue the chat
 
-The client (`apps/web/src/client.tsx`) polls `pendingApprovals()` every 2 seconds
+The client (`apps/web/src/client.tsx`) polls `pendingExecutions()` every 2 seconds
 and is intended to show tool arguments and offer Approve/Reject buttons.
-Durable approval handling requires SDK compatibility fixes and end-to-end
-verification. Sensitive browser tools request explicit browser confirmation.
+Durable approval handling still requires end-to-end verification. GitHub writes
+remain blocked in the meantime. Sensitive browser tools request explicit browser
+confirmation.
 
 ## Setup
 
@@ -128,7 +132,8 @@ npm install
 
 Before using the agent, configure `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, and
 `CF_ACCESS_ALLOWED_GROUP_IDS` for the gateway. Configure the Access application
-policy with the same allowed groups. Set the GitHub credential with:
+policy with the same allowed groups. GitHub is optional for code generation.
+If read-only GitHub tools are needed, set the credential with:
 
 ```powershell
 npx wrangler secret put GITHUB_TOKEN --config wrangler.jsonc

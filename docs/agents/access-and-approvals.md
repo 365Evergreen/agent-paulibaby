@@ -63,22 +63,24 @@ The OpenAPI service also requires `CF_ACCESS_TEAM_DOMAIN`, its own
 
 ## Tool permission policy
 
-The policies below are intended behavior. The durable Think integration
-currently has SDK compatibility errors, so GitHub approval and chat flows
-must be repaired and verified before relying on them. The browser confirmation
-fix is local until deployed. See [operations and rollback](operations-and-rollback.md).
+The policies below describe the local implementation. Authenticated chat and
+durable approvals still require end-to-end verification; changes are not live
+until deployed. See [operations and rollback](operations-and-rollback.md).
 
 | Tool surface | Default policy |
 | --- | --- |
-| GitHub MCP | Only the explicit read-only allowlist runs directly. Every other tool, including unknown tools added upstream, requires durable user approval. |
+| GitHub MCP | Only the explicit read-only allowlist is exposed. All other tools are blocked at discovery and invocation, including previously paused calls, until durable approvals are verified. |
 | Browser clipboard, geolocation, and localStorage | The browser prompts before each read or write. |
 | Workspace tools | Operate within the authenticated user's isolated Durable Object workspace. |
 | `operations.*` | Limited to the current server-time and echo utilities. |
 
-Before approving a GitHub action, review the connector, method, and displayed
-JSON arguments. Approval callables run on the same tenant-specific Durable
-Object as the pending execution. Do not expose approval routes outside the
-Access-protected gateway.
+Think's `pendingExecutions()` returns the full arguments of pending Code Mode
+actions; its `approveExecution()` and `rejectExecution()` callables resolve
+them and update the conversation. Review the connector, method, and arguments
+before approving. GitHub mutations remain blocked even if an old pending run
+is approved. Do not expose approval routes outside the Access-protected gateway.
+The SDK approves by execution ID rather than action sequence, so concurrent
+review and replay behavior must be verified before enabling external writes.
 
 ## Standalone MCP services
 

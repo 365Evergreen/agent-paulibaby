@@ -6,6 +6,7 @@ import { createCodeTool } from "@cloudflare/codemode/ai";
 import { DynamicWorkerExecutor } from "@cloudflare/codemode";
 import { createAI } from "agents/models/ai-sdk";
 import { routeAgentRequest } from "agents";
+import { workspaceLoader } from "./workspace-loader";
 
 // Same model the existing OpenCodeAgent uses.
 const MODEL_ID = "@cf/moonshotai/kimi-k2.7-code";
@@ -27,7 +28,7 @@ export class PaulibabyAgent extends Think<Env> {
     backends: [
       new WorkerJavaScriptBackend({
         id: "js",
-        loader: this.env.LOADER,
+        loader: workspaceLoader(this.env.LOADER),
         access: "read-write",
       }),
     ],

@@ -15,13 +15,34 @@ subsequent deployment state:
 | --- | --- |
 | Deployment | Production version `c257e31e-febb-4b9f-a264-1ba41ccc303e` is active. The build and Wrangler dry run succeed, but these do not test runtime behavior. |
 | Existing state | Production has a SQLite-backed `PaulibabyAgent` namespace following the class rename. This verifies the namespace, not the contents of any conversation. The active version has no `LEGACY_STATE_OWNER_SUBJECT` binding, so the former `default` instance is not routed to its owner. |
-| Access and chat | The deployed agent route returned `503 access_not_configured`; the active version has none of the required Access variables. Authenticated chat, streaming, and reconnect remain unverified. |
-| Approvals | The current durable Think integration does not typecheck against the installed SDK. Its tool returns a Promise where Think expects a synchronous tool, and the approval methods conflict with inherited methods. The client also registers a `codemode` tool under the same name as the server tool. Do not rely on GitHub approval flows until this integration is corrected and tested end to end. Production has no `GITHUB_TOKEN` secret. |
+| Access and chat | The deployed agent route returned `503 access_not_configured`; the active version has none of the required Access variables. A local direct Think turn generated runnable code, but authenticated browser chat, streaming, and reconnect remain unverified. |
+| Approvals | The local Think integration uses the SDK's synchronous runtime tool and built-in approval methods; the browser tool has a separate name. GitHub writes are blocked at discovery and invocation until approval, replay, and concurrency are verified end to end. Production has no `GITHUB_TOKEN` secret as of the observation above. |
 | Browser permissions | Local tests cover approval and rejection of each protected operation. This fix is not verified in the deployed Worker until the new version is deployed and tested. |
 | Delegation | Request and result schemas are tested; there is no specialist registration or delegation execution path to verify yet. |
 
-`npm run typecheck` still fails in `packages/agents/think/src/agent.ts`. A
-successful build does not imply the typecheck or an interactive scenario passed.
+Local typecheck and unit tests do not establish that authenticated chat,
+reconnect, workspace persistence, or durable approvals work end to end. A
+successful build does not imply an interactive scenario passed.
+
+An isolated local Worker using the actual Think agent and its configured
+Workers AI model generated a JavaScript palindrome function in a chat turn.
+In a second turn it used the durable Code Mode workspace connector to write
+and read the function, then returned its contents in chat. The resulting
+function passed four local cases. The workspace was local Durable Object
+storage, not a checkout on the host filesystem. This direct Think test
+bypassed the gateway and browser UI and used no GitHub connector.
+
+The local phase-zero probe exercised the actual durable Code Mode runtime and
+workspace tools in an isolated test Worker: a file survived a Worker restart,
+and workspace JavaScript could not use outbound `fetch`. This bypassed the
+gateway and did not verify an authenticated chat or a GitHub connection.
+In a separate test-only connector, a rejected action did not run, a paused
+action survived a Worker restart, and duplicate or concurrent approvals did
+not repeat the action. That probe exercised the runtime directly, not the
+browser approval UI or an external service.
+Code Mode's `ToolSetConnector` does not provide an AI SDK abort signal to
+workspace `exec`; the adapter collects its final streamed result, but stopping
+a chat turn has not been verified to stop an already running exec.
 
 ## Before deploying
 
@@ -73,11 +94,12 @@ content, access tokens, or personal identifiers.
    any old `default` state is not selected by the gateway.
 2. Send a chat message; observe streaming, final response, refresh, and
    reconnect. Confirm unauthorized requests cannot access the agent.
-3. Exercise a non-mutating GitHub tool. With a disposable test repository,
-   trigger an approval-gated action and confirm its arguments are visible,
-   rejection performs no action, approval performs the intended action once,
-   and the conversation continues. Repeat across a reconnect or restart.
-   Check protected browser operations prompt and rejection blocks access.
+3. Exercise a non-mutating GitHub tool and confirm GitHub mutations are blocked.
+   Verify approval and rejection with a safe test-only connector, including full
+   arguments, repeated/concurrent resolution, reconnect and restart. Do not
+   enable external writes until replay and uncertain in-flight effects have been
+   assessed against a disposable test service. Check protected browser operations
+   prompt and rejection blocks access.
 4. Once a specialist and delegation runtime exist, exercise successful and
    failed delegation with matching request IDs and tenant isolation. Contract
    parsing alone is not delegation verification.

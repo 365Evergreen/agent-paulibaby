@@ -1,18 +1,16 @@
-import { Think } from "@cloudflare/think";
+import { Think, type ThinkModel } from "@cloudflare/think";
+import { createExecuteRuntime, type ExecuteRuntime } from "@cloudflare/think/tools/execute";
 import { Workspace } from "@cloudflare/computer";
 import { WorkerJavaScriptBackend } from "@cloudflare/computer/backends/worker-javascript";
 import { createAITools } from "@cloudflare/computer/tools/ai-sdk";
-import {
-  createCodemodeRuntime,
-  DynamicWorkerExecutor,
-  type CodemodeRuntimeHandle,
-} from "@cloudflare/codemode";
 import { toolSetConnector } from "@cloudflare/codemode/ai";
 import { createAI } from "agents/models/ai-sdk";
-import { callable, routeAgentRequest } from "agents";
+import { routeAgentRequest } from "agents";
 import { tool } from "ai";
 import { z } from "zod";
 import { GithubConnector } from "@agent-paulibaby/connectors";
+import { workspaceLoader } from "./workspace-loader";
+import { codemodeWorkspaceTools } from "./codemode-workspace-tools";
 
 // Same model the existing OpenCodeAgent uses.
 const MODEL_ID = "@cf/moonshotai/kimi-k2.7-code";
@@ -41,7 +39,7 @@ const operationsTools = {
  * Top-level Think agent with:
  *   - Workspace file tools (read, ls, find, grep, write, edit, delete, exec)
  *   - Durable Code Mode runtime (execution history, approvals, rollback)
- *   - MCP connector (GitHub, with approval-gated create_issue)
+ *   - Read-only GitHub MCP connector
  *   - ToolSetConnector (custom AI SDK tools as operations.*)
  *
  * Browser Code Mode runs entirely client-side — see apps/web/src/codemode-tool.ts.
@@ -52,8 +50,9 @@ export class PaulibabyAgent extends Think<Env> {
     backends: [
       new WorkerJavaScriptBackend({
         id: "js",
-        loader: this.env.LOADER,
+        loader: workspaceLoader(this.env.LOADER),
         access: "read-write",
+        egress: { mode: "none" },
       }),
     ],
   });
@@ -62,7 +61,7 @@ export class PaulibabyAgent extends Think<Env> {
   // automatic tool set.
   includeMcpTools = false;
 
-  getModel() {
+  getModel(): ThinkModel {
     return createAI({ binding: this.env.AI })(MODEL_ID, { reasoningEffort: "low" });
   }
 
@@ -71,17 +70,18 @@ export class PaulibabyAgent extends Think<Env> {
       "You are a helpful assistant with workspace file tools, Code Mode, and connectors.",
       "Workspace tools: read, ls, find, grep, write, edit, delete, exec.",
       "Code Mode: write one JS function that orchestrates multiple tools in a single block.",
-      "GitHub tools require the GITHUB_TOKEN Worker secret; all tools not explicitly classified as read-only require user approval.",
-      "Connectors: github.* (approval-gated mutations), operations.* (server tools).",
+      "GitHub tools require the GITHUB_TOKEN Worker secret; only explicitly allowed read-only tools are available. GitHub mutations are disabled.",
+      "Connectors: workspace.* (workspace tools), github.* (read-only), operations.* (server tools).",
       "Use codemode.search() and codemode.describe() to discover connector methods.",
+      "Use browser_codemode for browser-owned tools.",
     ].join(" ");
   }
 
-  #runtime: CodemodeRuntimeHandle | null = null;
+  #executeRuntime: ExecuteRuntime | null = null;
   #githubConfigurationWarningLogged = false;
 
-  async codemodeRuntime(): Promise<CodemodeRuntimeHandle> {
-    if (this.#runtime) return this.#runtime;
+  private executeRuntime(): ExecuteRuntime {
+    if (this.#executeRuntime) return this.#executeRuntime;
 
     const connectors = [];
     if (this.env.GITHUB_TOKEN) {
@@ -96,54 +96,30 @@ export class PaulibabyAgent extends Think<Env> {
     // ToolSetConnector: exposes AI SDK tools as operations.*
     connectors.push(
       toolSetConnector(this.ctx, {
+        name: "workspace",
+        instructions: "Tools for the current user's workspace.",
+        tools: codemodeWorkspaceTools(createAITools({ workspace: this.workspace })),
+      }),
+      toolSetConnector(this.ctx, {
         name: "operations",
         instructions: "Server-side utility tools.",
         tools: operationsTools,
       }),
     );
 
-    this.#runtime = createCodemodeRuntime({
-      ctx: this.ctx,
-      executor: new DynamicWorkerExecutor({ loader: this.env.LOADER }),
+    this.#executeRuntime = createExecuteRuntime(this, {
+      name: "default",
       connectors,
+      globalOutbound: null,
     });
 
-    return this.#runtime;
+    return this.#executeRuntime;
   }
 
   getTools() {
     return {
-      codemode: this.codemodeRuntime().then((rt) =>
-        rt.tool({
-          tools: [
-            {
-              name: "workspace",
-              tools: createAITools({ workspace: this.workspace }),
-            },
-          ],
-        }),
-      ),
+      codemode: this.executeRuntime().tool,
     };
-  }
-
-  // ── Human-in-the-loop approval methods (called from the client) ─────────────
-
-  @callable()
-  async pendingApprovals() {
-    const rt = await this.codemodeRuntime();
-    return rt.pending();
-  }
-
-  @callable()
-  async approveExecution(executionId: string) {
-    const rt = await this.codemodeRuntime();
-    return rt.approve({ executionId });
-  }
-
-  @callable()
-  async rejectExecution(executionId: string, seq: number) {
-    const rt = await this.codemodeRuntime();
-    return rt.reject({ executionId, seq });
   }
 }
 

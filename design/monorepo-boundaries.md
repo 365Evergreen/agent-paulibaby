@@ -94,9 +94,9 @@ subject; a client-supplied instance name is never used for identity. Set
 first caller automatically.
 
 GitHub is connected at runtime with the `GITHUB_TOKEN` Worker secret, not the
-MCP manager or Durable Object storage. Read-only GitHub tools use an explicit
-allowlist; all other and future tools are intended to require durable approval.
-The durable approval integration is not yet verified against the installed SDK.
+MCP manager or Durable Object storage. Only tools on the explicit read-only
+allowlist are exposed or callable; other tools remain blocked until the durable
+approval integration is verified end to end.
 Local browser tools ask for confirmation before clipboard, geolocation, and
 localStorage access.
 Standalone MCP endpoints use the same Access validation and reject unapproved

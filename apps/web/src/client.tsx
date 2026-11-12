@@ -9,17 +9,19 @@ import {
   type PendingApproval,
 } from "@agent-paulibaby/contracts";
 import { codemodeTool } from "./codemode-tool";
+import { resolveApproval } from "./approval-actions";
 import styles from "./client.module.css";
 
 function Chat() {
   const agent = useAgent({ agent: "PaulibabyAgent" });
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
   const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [approvalPollError, setApprovalPollError] = useState<string | null>(null);
 
   // Register the browser Code Mode tool as a dynamic client tool.
   const tools = useMemo<Record<string, AITool>>(
     () => ({
-      codemode: {
+      browser_codemode: {
         description: codemodeTool.description,
         parameters: codemodeTool.inputSchema,
         execute: (input) =>
@@ -55,24 +57,21 @@ function Chat() {
   useEffect(() => {
     const checkApprovals = async () => {
       try {
-        const pending = await agent.call("pendingApprovals");
+        const pending = await agent.call("pendingExecutions");
         setPendingApprovals(pendingApprovalsSchema.parse(pending));
-        setApprovalError(null);
+        setApprovalPollError(null);
       } catch (error) {
-        setApprovalError(error instanceof Error ? error.message : String(error));
+        setApprovalPollError(error instanceof Error ? error.message : String(error));
       }
     };
+    void checkApprovals();
     const interval = setInterval(checkApprovals, 2000);
     return () => clearInterval(interval);
   }, [agent]);
 
   const handleApproval = async (command: ApprovalCommand) => {
     try {
-      if (command.action === "approve") {
-        await agent.call("approveExecution", [command.executionId]);
-      } else {
-        await agent.call("rejectExecution", [command.executionId, command.seq]);
-      }
+      await resolveApproval((method, args) => agent.call(method, args), command);
       setApprovalError(null);
     } catch (error) {
       setApprovalError(error instanceof Error ? error.message : String(error));
@@ -146,6 +145,11 @@ function Chat() {
       {approvalError && (
         <p className={styles.statusText} role="alert">
           Approval error: {approvalError}
+        </p>
+      )}
+      {approvalPollError && (
+        <p className={styles.statusText} role="alert">
+          Approval refresh error: {approvalPollError}
         </p>
       )}
 

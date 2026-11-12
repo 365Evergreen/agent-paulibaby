@@ -1,3 +1,5 @@
+import type { McpConnectionLike } from "@cloudflare/codemode";
+
 const READ_ONLY_GITHUB_TOOLS = new Set([
   "get_commit",
   "get_file_contents",
@@ -29,4 +31,29 @@ const READ_ONLY_GITHUB_TOOLS = new Set([
 
 export function githubToolRequiresApproval(name: string): boolean {
   return !READ_ONLY_GITHUB_TOOLS.has(name);
+}
+
+export function assertGithubReadOnlyTool(name: string): void {
+  if (githubToolRequiresApproval(name)) {
+    throw new Error(`GitHub tool "${name}" is disabled until mutation approvals are verified.`);
+  }
+}
+
+export function restrictGithubConnection(connection: McpConnectionLike): McpConnectionLike {
+  const filter = <T extends { name: string }>(tools: T[]) =>
+    tools.filter((tool) => !githubToolRequiresApproval(tool.name));
+  const fetchTools = connection.fetchTools;
+  return {
+    ...connection,
+    tools: connection.tools ? filter(connection.tools) : undefined,
+    fetchTools: fetchTools
+      ? async () => filter(await fetchTools.call(connection))
+      : undefined,
+    client: {
+      callTool: (params) => {
+        assertGithubReadOnlyTool(params.name);
+        return connection.client.callTool(params);
+      },
+    },
+  };
 }
