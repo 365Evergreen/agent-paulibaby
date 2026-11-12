@@ -1,8 +1,10 @@
 {
   "extends": "agents/tsconfig",
-  "compilerOptions": {
-    "types": ["@cloudflare/workers-types"],
-    "jsx": "react-jsx"
-  },
+ "compilerOptions": {
+  "types": ["@cloudflare/workers-types"],
+  "jsx": "react-jsx",
+  "experimentalDecorators": true
+}
+,
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

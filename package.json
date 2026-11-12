@@ -11,13 +11,14 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "^4",
-    "@ai-sdk/react": "^4.0.173",
     "@cloudflare/ai-chat": "latest",
+    "@cloudflare/codemode": "latest",
     "@cloudflare/computer": "latest",
     "@cloudflare/think": "latest",
+    "@modelcontextprotocol/sdk": "^1",
     "agents": "latest",
     "ai": "^7",
-    "just-bash": "^3.4.2",
+    "just-bash": "^3.6.0",
     "react": "^19",
     "react-dom": "^19",
     "zod": "^4"
@@ -25,16 +26,16 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "latest",
     "@cloudflare/workers-types": "latest",
-    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "latest",
     "typescript": "^5",
     "vite": "latest",
     "wrangler": "latest"
   },
   "allowScripts": {
+    "@mongodb-js/zstd@7.0.0": true,
     "core-js-pure@3.51.0": true,
     "esbuild@0.28.2": true,
-    "workerd@1.20261110.1": true,
-    "@mongodb-js/zstd@7.0.0": true
+    "workerd@1.20261110.1": true
   }
 }

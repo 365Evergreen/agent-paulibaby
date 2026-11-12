@@ -42,5 +42,20 @@
     "traces": {
       "enabled": true
     }
+  },
+
+  "mcp": {
+    "servers": {
+      "github": {
+        "transport": {
+          "type": "remote",
+          "url": "https://api.githubcopilot.com/mcp/"
+        },
+        "auth": {
+          "type": "bearer",
+          "token": "YOUR_GITHUB_TOKEN"
+        }
+      }
+    }
   }
 }
