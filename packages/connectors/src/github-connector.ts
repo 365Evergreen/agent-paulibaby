@@ -10,10 +10,10 @@ import { McpConnector, type ConnectorTool, type McpConnectionLike } from "@cloud
  * Register the GitHub MCP server in wrangler.jsonc under "mcp" or via
  * this.mcp.addServer() in the agent's onConnect lifecycle method.
  */
-export class GithubConnector extends McpConnector<Env> {
+export class GithubConnector extends McpConnector<unknown> {
   private connection: McpConnectionLike;
 
-  constructor(ctx: DurableObjectState, env: Env, connection: McpConnectionLike) {
+  constructor(ctx: DurableObjectState, env: unknown, connection: McpConnectionLike) {
     super(ctx, env);
     this.connection = connection;
   }

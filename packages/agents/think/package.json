@@ -1,0 +1,22 @@
+{
+  "name": "@agent-paulibaby/think",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@agent-paulibaby/connectors": "0.0.1",
+    "@agent-paulibaby/contracts": "0.0.1",
+    "@cloudflare/codemode": "latest",
+    "@cloudflare/computer": "latest",
+    "@cloudflare/think": "latest",
+    "agents": "latest",
+    "ai": "^7.0.170",
+    "zod": "^4"
+  }
+}

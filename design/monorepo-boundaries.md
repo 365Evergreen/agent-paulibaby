@@ -1,0 +1,92 @@
+# Monorepo boundaries and build conventions
+
+This document defines the target code ownership and dependency rules for the
+repository. It establishes package and build conventions before code is moved;
+the existing root-level application remains the deployable implementation until
+the UI and Worker extraction tasks are completed.
+
+## Code boundaries
+
+| Area | Target location | Owns | Must not own |
+| --- | --- | --- | --- |
+| Gateway | `apps/gateway` | Worker entry point, HTTP/WebSocket routing, authentication and authorization hooks, request validation, same-origin asset serving, and mapping errors to transport responses | Prompts, model policy, specialist logic, or UI components |
+| Think | `packages/agents/think` | Conversation lifecycle, model configuration, orchestration, tool selection, and delegation to specialists | HTTP edge policy, browser rendering, or specialist-specific implementation |
+| Specialist agents | `packages/agents/<name>` | One focused capability with a typed input/output contract, its own instructions, and the tools needed for that capability | Gateway/UI imports, credentials, or direct dependencies on other specialists |
+| UI | `apps/web` | React rendering, browser state, browser-only tools, and chat/approval interaction | Server secrets, server tool implementations, or imports from agent runtime packages |
+| Shared contracts | `packages/contracts` | Versioned schemas and types shared across runtime and UI boundaries, including delegation, chat, approval, and error shapes | Environment-specific code, model prompts, or infrastructure bindings |
+| Shared connectors | `packages/connectors` | Reusable adapters for external tools and services, with credentials supplied by the consuming runtime | Credential storage, UI behavior, or agent orchestration |
+
+Think is the conversation orchestrator, not a dependency that specialists import.
+Delegation crosses a typed contract and is composed by the runtime. A specialist
+is a code package by default, not a separate Worker deployment; split its
+deployment only when independent security, scaling, release, or failure-isolation
+needs justify the operational cost.
+
+The intended dependency direction is:
+
+```text
+apps/web ───────────────> packages/contracts
+apps/gateway ───────────> packages/contracts
+apps/gateway ───────────> packages/agents/think
+packages/agents/think ──> packages/contracts, packages/connectors
+packages/agents/<name> ─> packages/contracts, packages/connectors
+```
+
+Packages must not create circular dependencies. Cross-boundary imports use
+workspace package names and public exports, not relative paths into another
+package's source tree. The browser and Worker communicate through the shared
+protocol, not by importing each other's implementation.
+
+## Workspace and build conventions
+
+- The repository root is the sole npm and lockfile root. Run `npm install` from
+  the root; do not add package-local lockfiles.
+- npm workspaces are reserved for `apps/*`, `packages/*`, and
+  `packages/agents/*`. A workspace manifest is added with each extracted
+  package; do not create empty placeholder packages just to populate the globs.
+- Internal packages use the `@agent-paulibaby/` name prefix and expose only
+  supported entry points through `exports`. Keep internal packages private
+  until publishing is an explicit requirement.
+- The root `package.json` remains the compatibility entry point during
+  extraction. Preserve `npm run dev`, `npm run build`, `npm run deploy`, and
+  `npm run typecheck`; each workspace that implements those capabilities uses
+  the same script names. Root commands can then fan out with npm's workspace
+  flags once child workspace manifests exist.
+- TypeScript packages extend the root `tsconfig.base.json` and may add
+  platform-specific compiler options locally. The base preserves the existing
+  Agents SDK TypeScript defaults, strict checking, JSX mode, and Worker types.
+- Keep source as ESM (`"type": "module"`). App packages own their bundler and
+  deployment configuration; shared libraries should typecheck/build without
+  depending on an app's Vite or Wrangler configuration.
+- Changes that move the existing Worker entry point must preserve its Wrangler
+  Durable Object class identity, binding name, and migration history. Package
+  extraction alone is not a state migration.
+
+## Shared contracts
+
+`packages/contracts` exports runtime Zod schemas and inferred TypeScript types:
+
+- Delegation requests carry a request ID, specialist ID, optional conversation
+  ID, and JSON input. Results are a discriminated `completed`/`failed` union.
+- Chat stream events are application-level `text_delta`, `completed`, and
+  `error` events with a request ID and monotonically increasing sequence
+  number. They describe the domain event contract and do not replace the
+  Agents SDK WebSocket wire protocol.
+- Pending approvals use the Code Mode runtime's `executionId`, `seq`,
+  `connector`, `method`, and JSON `args` fields. Approval commands are typed
+  approve/reject intents and map to the existing callable methods.
+- API and stream errors use a stable `code`, human-readable `message`,
+  `retryable` flag, and optional JSON details.
+
+The UI validates approval data at runtime before rendering it. The gateway uses
+the shared error response type for its JSON not-found response.
+
+## Current transition state
+
+The web UI, gateway entry point, Think agent, GitHub connector, and contracts
+now live in npm workspaces. Vite still builds and serves the web assets and
+Worker together, preserving same-origin chat and approvals. The root
+`wrangler.jsonc` keeps its Worker name, `PaulibabyAgent` export/binding, and
+`v1` migration; Vite's local persistence path remains anchored to the existing
+root `.wrangler/state` directory. Standalone MCP examples remain in `src/` for
+the follow-on organization task.

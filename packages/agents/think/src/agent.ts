@@ -15,7 +15,7 @@ import { createAI } from "agents/models/ai-sdk";
 import { callable, routeAgentRequest } from "agents";
 import { tool } from "ai";
 import { z } from "zod";
-import { GithubConnector } from "./connectors/github-connector";
+import { GithubConnector } from "@agent-paulibaby/connectors";
 
 // Same model the existing OpenCodeAgent uses.
 const MODEL_ID = "@cf/moonshotai/kimi-k2.7-code";
@@ -47,7 +47,7 @@ const operationsTools = {
  *   - MCP connector (GitHub, with approval-gated create_issue)
  *   - ToolSetConnector (custom AI SDK tools as operations.*)
  *
- * Browser Code Mode runs entirely client-side — see src/codemode-tool.ts.
+ * Browser Code Mode runs entirely client-side — see apps/web/src/codemode-tool.ts.
  */
 export class PaulibabyAgent extends Think<Env> {
   override workspace = new Workspace({

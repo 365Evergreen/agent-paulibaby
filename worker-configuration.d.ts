@@ -4,11 +4,11 @@
 interface __BaseEnv_Env {
 	LOADER: WorkerLoader;
 	AI: Ai;
-	PaulibabyAgent: DurableObjectNamespace<import("./src/server").PaulibabyAgent>;
+	PaulibabyAgent: DurableObjectNamespace<import("./packages/agents/think/src/agent").PaulibabyAgent>;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
-		mainModule: typeof import("./src/server");
+		mainModule: typeof import("./apps/gateway/src/index");
 		durableNamespaces: "PaulibabyAgent";
 	}
 	interface Env extends __BaseEnv_Env {}

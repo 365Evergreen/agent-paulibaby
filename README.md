@@ -22,39 +22,41 @@ A stateful AI chat agent built with `@cloudflare/think`, running on
 
 ```
 agent-paulibaby/
-├── src/
-│   ├── server.ts                  # Think agent: durable runtime (recommended)
-│   ├── server-simple.ts           # Think agent: stateless runtime
-│   ├── mcp-server.ts              # Code Mode MCP server (wraps upstream MCP)
-│   ├── openapi-mcp-server.ts      # Code Mode MCP server (from OpenAPI spec)
-│   ├── client.tsx                 # React chat UI + browser Code Mode + approvals
-│   ├── client.module.css          # CSS module (no inline styles)
-│   ├── codemode-tool.ts           # Browser Code Mode descriptor (IframeSandboxExecutor)
-│   ├── browser-tools.ts           # Browser-owned tools (timezone, clipboard, geolocation, localStorage)
-│   └── connectors/
-│       └── github-connector.ts    # MCP connector with approval gating
-├── index.html                     # HTML entry point
-├── vite.config.ts                # Vite + @cloudflare/vite-plugin
-├── wrangler.jsonc                 # AI, LOADER, Durable Object, assets, MCP config
-├── package.json                   # Dependencies
-├── tsconfig.json                  # TypeScript config
+├── apps/
+│   ├── gateway/src/index.ts       # Worker routing and error responses
+│   └── web/                       # React UI and browser-only tools
+├── packages/
+│   ├── agents/think/              # Durable Think agent and stateless variant
+│   ├── connectors/                # GitHub MCP connector
+│   └── contracts/                 # Delegation, streaming, approval, error schemas
+├── src/                           # Standalone MCP examples (pending follow-up task)
+├── vite.config.ts                 # Vite + Cloudflare Worker integration
+├── wrangler.jsonc                 # Root config preserves local state and DO identity
+├── package.json                   # Workspace scripts and dependencies
+├── tsconfig.json                  # Repository-wide TypeScript check
 └── README.md                      # This file
 ```
 
+The target package boundaries, dependency rules, and monorepo conventions are
+defined in [design/monorepo-boundaries.md](design/monorepo-boundaries.md).
+The UI remains hosted by the same Cloudflare Worker through the Vite plugin.
+`wrangler.jsonc` stays at the repository root so local Durable Object state
+continues using the existing `.wrangler/state` directory.
+
 ## Four Code Mode surfaces
 
-### 1. Server Code Mode — durable runtime (`src/server.ts`)
+### 1. Server Code Mode — durable runtime (`packages/agents/think/src/agent.ts`)
 
 `createCodemodeRuntime()` with `DynamicWorkerExecutor`. The model writes one JS
 function that calls `workspace.*`, `github.*`, and `operations.*` methods.
 Execution history, approvals, rollback, and snippets are stored in SQLite.
 
-### 2. Server Code Mode — stateless (`src/server-simple.ts`)
+### 2. Server Code Mode — stateless (`packages/agents/think/src/server-simple.ts`)
 
 `createCodeTool()` — same orchestration, no durable state. Includes MCP tools
 via `this.mcp.getAITools()`.
 
-### 3. Browser Code Mode (`src/codemode-tool.ts` + `src/client.tsx`)
+### 3. Browser Code Mode (`apps/web/src/codemode-tool.ts` + `apps/web/src/client.tsx`)
 
 `createBrowserCodeTool()` with `IframeSandboxExecutor`. The model writes JS that
 calls browser-owned tools (timezone, clipboard, geolocation, localStorage).
@@ -79,26 +81,26 @@ Connect any MCP client at `https://<YOUR_WORKER>.<YOUR_SUBDOMAIN>.workers.dev/mc
 
 ## Connectors
 
-### MCP connector (`src/connectors/github-connector.ts`)
+### MCP connector (`packages/connectors/src/github-connector.ts`)
 
 Wraps a GitHub MCP server. All tools become `github.*` methods. The
 `create_issue` tool is marked `requiresApproval: true` — the runtime pauses
 before executing it and returns a pending approval to the client.
 
-### ToolSetConnector (in `src/server.ts`)
+### ToolSetConnector (in `packages/agents/think/src/agent.ts`)
 
 Exposes AI SDK tools as `operations.*`. The model calls
 `operations.getServerTime()`, `operations.echo()`, etc. from generated code.
 
 ## Human-in-the-loop approvals
 
-The durable runtime (`src/server.ts`) exposes three `@callable` methods:
+The durable runtime (`packages/agents/think/src/agent.ts`) exposes three `@callable` methods:
 
 - `pendingApprovals()` — list paused executions waiting for review
 - `approveExecution(executionId)` — approve and resume
 - `rejectExecution(executionId, seq)` — reject and stop
 
-The client (`src/client.tsx`) polls `pendingApprovals()` every 2 seconds and
+The client (`apps/web/src/client.tsx`) polls `pendingApprovals()` every 2 seconds and
 shows Approve/Reject buttons when approvals are pending.
 
 ## Setup
@@ -119,14 +121,14 @@ npm run dev
 npm run deploy
 ```
 
-## Switching server variants
+## Worker entry point and local state
 
-In `wrangler.jsonc`, set `"main"` to:
-
-- `src/server.ts` — Think agent with durable Code Mode runtime
-- `src/server-simple.ts` — Think agent with stateless Code Mode
-- `src/mcp-server.ts` — standalone Code Mode MCP server (wraps upstream MCP)
-- `src/openapi-mcp-server.ts` — standalone Code Mode MCP server (from OpenAPI)
+`wrangler.jsonc` keeps `apps/gateway/src/index.ts` as the entry point. The
+gateway exports the existing `PaulibabyAgent` and `CodemodeRuntime` classes
+from the Think workspace. Keep the Worker name, Durable Object class and
+binding names, and migration history unchanged when editing this configuration.
+The stateless Think variant and standalone MCP examples are not production
+entrypoints in this configuration.
 
 ## Notes
 

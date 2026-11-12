@@ -3,22 +3,32 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "packageManager": "npm@11.20.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/agents/*"
+  ],
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "deploy": "wrangler deploy",
+    "dev": "npm run dev --workspace=@agent-paulibaby/web",
+    "build": "npm run build --workspace=@agent-paulibaby/web",
+    "deploy": "npm run deploy --workspace=@agent-paulibaby/gateway",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/provider": "^4",
+    "@ai-sdk/react": "^4.0.174",
     "@cloudflare/ai-chat": "latest",
     "@cloudflare/codemode": "latest",
     "@cloudflare/computer": "latest",
     "@cloudflare/think": "latest",
     "@modelcontextprotocol/sdk": "^1",
     "agents": "latest",
-    "ai": "^7",
-    "just-bash": "^3.6.0",
+    "ai": "^7.0.170",
+    "just-bash": "^3.4.2",
     "react": "^19",
     "react-dom": "^19",
     "zod": "^4"
