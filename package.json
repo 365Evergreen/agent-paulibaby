@@ -16,6 +16,7 @@
     "dev": "npm run dev --workspace=@agent-paulibaby/web",
     "build": "npm run build --workspace=@agent-paulibaby/web",
     "deploy": "npm run deploy --workspace=@agent-paulibaby/gateway",
+    "test": "npm run test --workspaces --if-present",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -37,7 +37,7 @@ class GithubConnector extends McpConnector<Env> {
 
 ```
 Model calls codemode({ code }) where code calls github.create_issue(...)
-  → runtime logs calls; create_issue requires approval → run pauses
+  → runtime logs calls; non-read-only GitHub tools require approval → run pauses
   → tool returns { status: "paused", executionId, pending: [...] }
 
 Agent shows the pending action to the user.

@@ -1,6 +1,12 @@
 import { openApiMcpServer } from "@cloudflare/codemode/mcp";
 import { DynamicWorkerExecutor } from "@cloudflare/codemode";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createLegacyMcpHandler } from "agents/mcp";
+import {
+  accessErrorResponse,
+  authenticateAccessRequest,
+  isAllowedOrigin,
+} from "@agent-paulibaby/auth";
+import { apiRequestUrl, isAllowedOpenApiRequest } from "./allowlist";
 
 /**
  * Code Mode MCP server from an OpenAPI spec.
@@ -13,8 +19,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
  * The host request function keeps credentials outside the sandbox. Text
  * responses are limited to ~6,000 tokens with a truncation marker.
  *
- * Any MCP client can connect at:
- *   https://<YOUR_WORKER>.<YOUR_SUBDOMAIN>.workers.dev/mcp
+ * Connect through an Access-protected custom domain at /mcp.
  */
 
 // ── Example OpenAPI spec ──────────────────────────────────────────────────────
@@ -99,33 +104,63 @@ async function hostRequest(options: {
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
   contentType?: string;
-}): Promise<unknown> {
-  const baseUrl = "https://api.example.com";
-  const url = new URL(`${baseUrl}${options.path}`);
+}, env: Env): Promise<unknown> {
+  if (!env.API_BASE_URL || !env.API_TOKEN) {
+    throw new Error("API_BASE_URL and the API_TOKEN Worker secret are required.");
+  }
+
+  if (
+    !isAllowedOpenApiRequest(
+      options.method,
+      options.path,
+      Object.keys(exampleSpec.paths),
+    )
+  ) {
+    throw new Error("Only GET operations declared in the OpenAPI specification are allowed.");
+  }
+
+  const url = apiRequestUrl(env.API_BASE_URL, options.path);
   if (options.query) {
     for (const [key, value] of Object.entries(options.query)) {
       if (value !== undefined) url.searchParams.set(key, String(value));
     }
   }
 
-  const headers = new Headers();
-  // Add auth headers here — the model never sees these
-  headers.set("Authorization", "Bearer YOUR_API_TOKEN");
-  if (options.contentType) headers.set("Content-Type", options.contentType);
-
   const response = await fetch(url.toString(), {
-    method: options.method,
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    method: "GET",
+    headers: { Authorization: `Bearer ${env.API_TOKEN}` },
+    redirect: "error",
   });
 
+  if (!response.ok) {
+    throw new Error(`The configured API returned HTTP ${response.status}.`);
+  }
   return response.json();
 }
 
 // ── Worker entry point ────────────────────────────────────────────────────────
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
+    const access = await authenticateAccessRequest(request, env);
+    if (!access.ok) return accessErrorResponse(access);
+    if (!isAllowedOrigin(request, env.MCP_ALLOWED_ORIGINS)) {
+      return Response.json(
+        {
+          error: {
+            code: "origin_not_allowed",
+            message: "This browser origin is not allowed.",
+            retryable: false,
+          },
+        },
+        { status: 403 },
+      );
+    }
+
     const url = new URL(request.url);
 
     if (url.pathname === "/") {
@@ -143,17 +178,14 @@ export default {
     const server = openApiMcpServer({
       spec: exampleSpec,
       executor,
-      request: hostRequest,
+      request: (options) => hostRequest(options, env),
       name: "example-api",
       version: "1.0.0",
     });
 
-    const transport = new StreamableHTTPServerTransport({
+    const handler = createLegacyMcpHandler(server, {
       sessionIdGenerator: undefined,
     });
-
-    await server.connect(transport);
-
-    return transport.handleRequest(request);
+    return handler(request, env, ctx);
   },
 } satisfies ExportedHandler<Env>;

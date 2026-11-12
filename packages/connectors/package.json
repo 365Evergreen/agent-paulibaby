@@ -9,7 +9,11 @@
       "import": "./src/index.ts"
     }
   },
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
+  },
   "dependencies": {
-    "@cloudflare/codemode": "latest"
+    "@cloudflare/codemode": "latest",
+    "@modelcontextprotocol/sdk": "^1"
   }
 }

@@ -62,6 +62,19 @@
   color: #78350f;
 }
 
+.approvalDetails {
+  font-size: 0.875rem;
+  color: #78350f;
+}
+
+.approvalArguments {
+  max-width: 24rem;
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .approvalButtons {
   display: flex;
   gap: 8px;
